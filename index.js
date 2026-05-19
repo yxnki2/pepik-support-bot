@@ -110,6 +110,14 @@ function staffButtons() {
 
 client.once('ready', () => {
   console.log(`${client.user.tag} je online.`);
+
+  client.user.setPresence({
+    activities: [{
+      name: 'Čekárna • Support',
+      type: 0
+    }],
+    status: 'online'
+  });
 });
 
 client.on('voiceStateUpdate', async (oldState, newState) => {
@@ -122,10 +130,17 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     const member = newState.member;
     const guild = newState.guild;
 
+    const existingChannel = guild.channels.cache.find(
+      c =>
+        c.name.includes(member.user.username.toLowerCase())
+    );
+
+    if (existingChannel) return;
+
     const channel = await guild.channels.create({
       name: `⏳・${member.user.username.toLowerCase()}`,
       type: ChannelType.GuildText,
-      parent: process.env.TICKET_CATEGORY_ID,
+      parent: process.env.SUPPORT_CATEGORY_ID,
 
       permissionOverwrites: [
         {
@@ -137,9 +152,24 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
           allow: [
             PermissionsBitField.Flags.ViewChannel,
             PermissionsBitField.Flags.SendMessages,
-            PermissionsBitField.Flags.AttachFiles
+            PermissionsBitField.Flags.AttachFiles,
+            PermissionsBitField.Flags.ReadMessageHistory
           ]
-        }
+        },
+
+        ...[
+          process.env.SUPPORT_ROLE_ID,
+          process.env.SENIORADMIN_ROLE_ID,
+          process.env.TEAMLEAD_ROLE_ID,
+          process.env.CEO_ROLE_ID
+        ].map(roleId => ({
+          id: roleId,
+          allow: [
+            PermissionsBitField.Flags.ViewChannel,
+            PermissionsBitField.Flags.SendMessages,
+            PermissionsBitField.Flags.ReadMessageHistory
+          ]
+        }))
       ]
     });
 
@@ -156,8 +186,30 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       embeds: [mainMenuEmbed()],
       components: [mainMenuRow()]
     });
-  }function getRouting(ticket) {
+  }  if (
+    oldState.channelId === process.env.WAITING_VOICE_ID &&
+    !newState.channelId
+  ) {
+    const member = oldState.member;
+    const guild = oldState.guild;
 
+    const channel = guild.channels.cache.find(
+      c => c.name.includes(member.user.username.toLowerCase())
+    );
+
+    if (channel) {
+      await channel.send(
+        '❌ Ticket byl uzavřen, protože se uživatel odpojil z čekárny.'
+      );
+
+      setTimeout(() => {
+        channel.delete().catch(() => {});
+      }, 5000);
+    }
+  }
+});
+
+function getRouting(ticket) {
   const category = ticket.category;
 
   if (category === 'Nahlášení hráče') {
@@ -208,20 +260,21 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
   };
 }
 
-client.on('interactionCreate', async (interaction) => {
-
+client.on('interactionCreate', async interaction => {
   if (interaction.isStringSelectMenu()) {
-
     const ticket = waitingTickets.get(interaction.channel.id);
 
-    if (!ticket) return;
+    if (!ticket) {
+      return interaction.reply({
+        content: '❌ Tento ticket už není aktivní.',
+        ephemeral: true
+      });
+    }
 
     if (interaction.customId === 'main_menu') {
-
       const value = interaction.values[0];
 
       if (value === 'report_player') {
-
         ticket.category = 'Nahlášení hráče';
 
         const embed = new EmbedBuilder()
@@ -234,30 +287,12 @@ client.on('interactionCreate', async (interaction) => {
             .setCustomId('report_player_menu')
             .setPlaceholder('Vyberte kategorii')
             .addOptions([
-              {
-                label: 'Nepovolené modifikace',
-                value: 'mods'
-              },
-              {
-                label: 'Nevhodné chování v chatu',
-                value: 'chat'
-              },
-              {
-                label: 'Kažení hry',
-                value: 'grief'
-              },
-              {
-                label: 'Spam / reklama',
-                value: 'spam'
-              },
-              {
-                label: 'Vydávání se za tým',
-                value: 'fake_staff'
-              },
-              {
-                label: 'Jiné',
-                value: 'other'
-              }
+              { label: 'Nepovolené modifikace', value: 'mods' },
+              { label: 'Nevhodné chování v chatu', value: 'chat' },
+              { label: 'Kažení hry', value: 'grief' },
+              { label: 'Spam / reklama', value: 'spam' },
+              { label: 'Vydávání se za tým', value: 'fake_staff' },
+              { label: 'Jiné', value: 'other' }
             ])
         );
 
@@ -268,7 +303,6 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       if (value === 'bug_report') {
-
         ticket.category = 'Nahlášení bugu';
 
         const embed = new EmbedBuilder()
@@ -281,30 +315,12 @@ client.on('interactionCreate', async (interaction) => {
             .setCustomId('bug_report_menu')
             .setPlaceholder('Vyberte kategorii')
             .addOptions([
-              {
-                label: 'Dupe glitch',
-                value: 'dupe'
-              },
-              {
-                label: 'Visual bug',
-                value: 'visual'
-              },
-              {
-                label: 'Server bug',
-                value: 'server'
-              },
-              {
-                label: 'Nefunkční příkaz',
-                value: 'command'
-              },
-              {
-                label: 'Problém s pluginem',
-                value: 'plugin'
-              },
-              {
-                label: 'Jiné',
-                value: 'other'
-              }
+              { label: 'Dupe glitch', value: 'dupe' },
+              { label: 'Visual bug', value: 'visual' },
+              { label: 'Server bug', value: 'server' },
+              { label: 'Nefunkční příkaz', value: 'command' },
+              { label: 'Problém s pluginem', value: 'plugin' },
+              { label: 'Jiné', value: 'other' }
             ])
         );
 
@@ -313,7 +329,6 @@ client.on('interactionCreate', async (interaction) => {
           components: [row, backButton()]
         });
       }      if (value === 'appeal') {
-
         ticket.category = 'Žádost o zrušení trestu';
 
         const embed = new EmbedBuilder()
@@ -326,26 +341,11 @@ client.on('interactionCreate', async (interaction) => {
             .setCustomId('appeal_menu')
             .setPlaceholder('Vyberte kategorii')
             .addOptions([
-              {
-                label: 'Mute',
-                value: 'mute'
-              },
-              {
-                label: 'Ban',
-                value: 'ban'
-              },
-              {
-                label: 'IP Ban',
-                value: 'ipban'
-              },
-              {
-                label: 'Stížnost',
-                value: 'complaint'
-              },
-              {
-                label: 'Jiné',
-                value: 'other'
-              }
+              { label: 'Mute', value: 'mute' },
+              { label: 'Ban', value: 'ban' },
+              { label: 'IP Ban', value: 'ipban' },
+              { label: 'Stížnost', value: 'complaint' },
+              { label: 'Jiné', value: 'other' }
             ])
         );
 
@@ -356,7 +356,6 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       if (value === 'management') {
-
         ticket.category = 'Kontaktování vedení';
 
         const embed = new EmbedBuilder()
@@ -369,22 +368,10 @@ client.on('interactionCreate', async (interaction) => {
             .setCustomId('management_menu')
             .setPlaceholder('Vyberte kategorii')
             .addOptions([
-              {
-                label: 'Nahlášení člena týmu',
-                value: 'staff_report'
-              },
-              {
-                label: 'Stížnost',
-                value: 'complaint'
-              },
-              {
-                label: 'Žádost o spolupráci',
-                value: 'partnership'
-              },
-              {
-                label: 'Jiné',
-                value: 'other'
-              }
+              { label: 'Nahlášení člena týmu', value: 'staff_report' },
+              { label: 'Stížnost', value: 'complaint' },
+              { label: 'Žádost o spolupráci', value: 'partnership' },
+              { label: 'Jiné', value: 'other' }
             ])
         );
 
@@ -395,7 +382,6 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       if (value === 'mc_question') {
-
         ticket.category = 'Otázka - MC Server';
 
         const embed = new EmbedBuilder()
@@ -408,26 +394,11 @@ client.on('interactionCreate', async (interaction) => {
             .setCustomId('mc_menu')
             .setPlaceholder('Vyberte kategorii')
             .addOptions([
-              {
-                label: 'Ekonomika',
-                value: 'economy'
-              },
-              {
-                label: 'Questy',
-                value: 'quests'
-              },
-              {
-                label: 'Claimy',
-                value: 'claims'
-              },
-              {
-                label: 'Pravidla',
-                value: 'rules'
-              },
-              {
-                label: 'Jiné',
-                value: 'other'
-              }
+              { label: 'Ekonomika', value: 'economy' },
+              { label: 'Questy', value: 'quests' },
+              { label: 'Claimy', value: 'claims' },
+              { label: 'Pravidla', value: 'rules' },
+              { label: 'Jiné', value: 'other' }
             ])
         );
 
@@ -438,7 +409,6 @@ client.on('interactionCreate', async (interaction) => {
       }
 
       if (value === 'discord_question') {
-
         ticket.category = 'Otázka - Discord';
 
         const embed = new EmbedBuilder()
@@ -451,26 +421,11 @@ client.on('interactionCreate', async (interaction) => {
             .setCustomId('discord_menu')
             .setPlaceholder('Vyberte kategorii')
             .addOptions([
-              {
-                label: 'Role',
-                value: 'roles'
-              },
-              {
-                label: 'Ověření',
-                value: 'verify'
-              },
-              {
-                label: 'Voice chat',
-                value: 'voice'
-              },
-              {
-                label: 'Ticket systém',
-                value: 'tickets'
-              },
-              {
-                label: 'Jiné',
-                value: 'other'
-              }
+              { label: 'Role', value: 'roles' },
+              { label: 'Ověření', value: 'verify' },
+              { label: 'Voice chat', value: 'voice' },
+              { label: 'Ticket systém', value: 'tickets' },
+              { label: 'Jiné', value: 'other' }
             ])
         );
 
@@ -487,9 +442,7 @@ client.on('interactionCreate', async (interaction) => {
       interaction.customId === 'mc_menu' ||
       interaction.customId === 'discord_menu'
     ) {
-
       const labels = {
-
         mods: 'Nepovolené modifikace',
         chat: 'Nevhodné chování v chatu',
         grief: 'Kažení hry',
@@ -527,22 +480,19 @@ client.on('interactionCreate', async (interaction) => {
 
       const routing = getRouting(ticket);
 
-      let description = '';
+      let description;
 
       if (ticket.category === 'Nahlášení hráče') {
-
         description =
           'Pokud máte k dispozici důkazní materiál k nahlášení hráče, dbejte prosím na to, aby:\n\n' +
           '• nebyl nijak upravený\n' +
           '• obsahoval datum a čas\n' +
           '• nebyl starší než 24 hodin\n\n' +
           'Důkazní materiál nahrajte přímo sem do ticketu jako screenshot/video, případně pošlete odkaz na YouTube, Streamable, Medal nebo Imgur.\n\n' +
-          '🟩 Ticket řeší:\n' +
-          `${routing.roles}`;
-      }
-
-      else {
-
+          'Nyní prosím vyčkejte na příchod člena:\n\n' +
+          `${routing.roles}\n\n` +
+          'který se Vám bude věnovat.';
+      } else {
         description =
           'Nyní prosím vyčkejte na příchod člena:\n\n' +
           `${routing.roles}\n\n` +
@@ -565,13 +515,16 @@ client.on('interactionCreate', async (interaction) => {
   }
 
   if (interaction.isButton()) {
-
     const ticket = waitingTickets.get(interaction.channel.id);
 
-    if (!ticket) return;
+    if (!ticket) {
+      return interaction.reply({
+        content: '❌ Tento ticket už není aktivní.',
+        ephemeral: true
+      });
+    }
 
     if (interaction.customId === 'back_main') {
-
       return interaction.update({
         embeds: [mainMenuEmbed()],
         components: [mainMenuRow()]
@@ -579,7 +532,6 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.customId === 'enough') {
-
       await interaction.update({
         content: '✅ Ticket byl označen jako vyřešený.',
         embeds: [],
@@ -594,7 +546,6 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.customId === 'need_help') {
-
       const routing = getRouting(ticket);
 
       await interaction.channel.setName(
@@ -602,7 +553,6 @@ client.on('interactionCreate', async (interaction) => {
       ).catch(() => {});
 
       return interaction.update({
-        content: routing.roles,
         embeds: [
           new EmbedBuilder()
             .setColor(0x57f287)
@@ -610,7 +560,8 @@ client.on('interactionCreate', async (interaction) => {
             .setDescription(
               `Hráč: <@${ticket.userId}>\n` +
               `Kategorie: ${ticket.category}\n` +
-              `Podkategorie: ${ticket.subcategory}`
+              `Podkategorie: ${ticket.subcategory}\n\n` +
+              `Ticket řeší:\n${routing.roles}`
             )
         ],
         components: [staffButtons()]
@@ -618,7 +569,6 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.customId === 'claim_ticket') {
-
       ticket.claimedBy = interaction.user.id;
 
       await interaction.channel.setName(
@@ -631,7 +581,6 @@ client.on('interactionCreate', async (interaction) => {
     }
 
     if (interaction.customId === 'close_ticket') {
-
       await interaction.reply({
         content: '🔒 Ticket bude za 5 sekund uzavřen.'
       });
