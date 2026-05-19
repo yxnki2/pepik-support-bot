@@ -8,7 +8,7 @@ const {
   EmbedBuilder,
   ActionRowBuilder,
   StringSelectMenuBuilder,
-  ButtonBuilder,
+ ButtonBuilder,
   ButtonStyle
 } = require('discord.js');
 
@@ -26,7 +26,9 @@ function mainMenuEmbed() {
   return new EmbedBuilder()
     .setColor(0x2f3136)
     .setTitle('Vítejte v čekárně!')
-    .setDescription('Zvolte prosím příslušnou kategorii, do které spadá Váš problém.');
+    .setDescription(
+      'Zvolte prosím příslušnou kategorii, do které spadá Váš problém.'
+    );
 }
 
 function mainMenuRow() {
@@ -35,11 +37,31 @@ function mainMenuRow() {
       .setCustomId('main_menu')
       .setPlaceholder('Vyberte kategorii')
       .addOptions([
-        { label: 'Nahlášení hráče', value: 'report_player', emoji: '‼️' },
-        { label: 'Nahlášení bugu', value: 'bug_report', emoji: '🐛' },
-        { label: 'Žádost o zrušení trestu', value: 'appeal', emoji: '📄' },
-        { label: 'Kontaktování vedení', value: 'management', emoji: '📘' },
-        { label: 'Otázka - MC Server', value: 'mc_question', emoji: '🎮' }
+        {
+          label: 'Nahlášení hráče',
+          value: 'report_player',
+          emoji: '‼️'
+        },
+        {
+          label: 'Nahlášení bugu',
+          value: 'bug_report',
+          emoji: '🐛'
+        },
+        {
+          label: 'Žádost o zrušení trestu',
+          value: 'appeal',
+          emoji: '📄'
+        },
+        {
+          label: 'Kontaktování vedení',
+          value: 'management',
+          emoji: '📘'
+        },
+        {
+          label: 'Otázka - MC Server',
+          value: 'mc_question',
+          emoji: '🎮'
+        }
       ])
   );
 }
@@ -96,13 +118,20 @@ client.once('ready', () => {
   console.log(`✅ Bot je online jako ${client.user.tag}`);
 
   client.user.setPresence({
-    activities: [{ name: 'Čekárna • Support', type: 0 }],
+    activities: [
+      {
+        name: 'Čekárna • Support',
+        type: 0
+      }
+    ],
     status: 'online'
   });
 });
 
 client.on('voiceStateUpdate', async (oldState, newState) => {
+
   if (newState.channelId === process.env.WAITING_VOICE_ID) {
+
     const member = newState.member;
     const guild = newState.guild;
 
@@ -116,11 +145,14 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       name: `⏳・${member.user.username}`,
       type: ChannelType.GuildText,
       parent: process.env.SUPPORT_CATEGORY_ID,
+
       permissionOverwrites: [
+
         {
           id: guild.roles.everyone,
           deny: [PermissionsBitField.Flags.ViewChannel]
         },
+
         {
           id: member.id,
           allow: [
@@ -129,6 +161,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
             PermissionsBitField.Flags.ReadMessageHistory
           ]
         },
+
         ...[
           process.env.CEO_ROLE_ID,
           process.env.COOWNER_ROLE_ID,
@@ -165,6 +198,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     oldState.channelId === process.env.WAITING_VOICE_ID &&
     !newState.channelId
   ) {
+
     const member = oldState.member;
     const guild = oldState.guild;
 
@@ -173,7 +207,10 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     );
 
     if (channel) {
-      await channel.send('❌ Ticket byl uzavřen, protože se uživatel odpojil z čekárny.');
+
+      await channel.send(
+        '❌ Ticket byl uzavřen, protože se uživatel odpojil z čekárny.'
+      );
 
       setTimeout(() => {
         channel.delete().catch(() => {});
@@ -183,31 +220,55 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 });
 
 client.on('interactionCreate', async interaction => {
+
   if (interaction.isStringSelectMenu()) {
+
     const ticket = waitingTickets.get(interaction.channel.id);
 
     if (interaction.customId === 'main_menu') {
+
       const value = interaction.values[0];
 
       if (value === 'report_player') {
+
         ticket.category = 'Nahlášení hráče';
 
         const embed = new EmbedBuilder()
           .setColor(0x2f3136)
           .setTitle('‼️ Nahlášení hráče')
-          .setDescription('Zvolte prosím příslušnou podkategorii problému.');
+          .setDescription(
+            'Zvolte prosím příslušnou podkategorii problému.'
+          );
 
         const row = new ActionRowBuilder().addComponents(
           new StringSelectMenuBuilder()
             .setCustomId('report_player_menu')
             .setPlaceholder('Vyberte podkategorii')
             .addOptions([
-              { label: 'Nepovolené modifikace', value: 'mods' },
-              { label: 'Nevhodné chování v chatu', value: 'chat' },
-              { label: 'Kažení hry', value: 'grief' },
-              { label: 'Spam / reklama', value: 'spam' },
-              { label: 'Vydávání se za tým', value: 'fake_staff' },
-              { label: 'Jiné', value: 'other' }
+              {
+                label: 'Nepovolené modifikace',
+                value: 'mods'
+              },
+              {
+                label: 'Nevhodné chování v chatu',
+                value: 'chat'
+              },
+              {
+                label: 'Kažení hry',
+                value: 'grief'
+              },
+              {
+                label: 'Spam / reklama',
+                value: 'spam'
+              },
+              {
+                label: 'Vydávání se za tým',
+                value: 'fake_staff'
+              },
+              {
+                label: 'Jiné',
+                value: 'other'
+              }
             ])
         );
 
@@ -215,27 +276,177 @@ client.on('interactionCreate', async interaction => {
           embeds: [embed],
           components: [row, backButton()]
         });
-      }
+      }      if (value === 'bug_report') {
 
-      if (value === 'bug_report') {
         ticket.category = 'Nahlášení bugu';
 
         const embed = new EmbedBuilder()
           .setColor(0x2f3136)
           .setTitle('🐛 Nahlášení bugu')
-          .setDescription('Zvolte prosím typ bugu, který chcete nahlásit.');
+          .setDescription(
+            'Zvolte prosím typ bugu, který chcete nahlásit.'
+          );
 
         const row = new ActionRowBuilder().addComponents(
           new StringSelectMenuBuilder()
             .setCustomId('bug_report_menu')
             .setPlaceholder('Vyberte typ bugu')
             .addOptions([
-              { label: 'Dupe glitch', value: 'dupe' },
-              { label: 'Visual bug', value: 'visual' },
-              { label: 'Server bug', value: 'server' },
-              { label: 'Nefunkční příkaz', value: 'command' },
-              { label: 'Problém s pluginem', value: 'plugin' },
-              { label: 'Jiné', value: 'other' }
+              {
+                label: 'Dupe glitch',
+                value: 'dupe'
+              },
+              {
+                label: 'Visual bug',
+                value: 'visual'
+              },
+              {
+                label: 'Server bug',
+                value: 'server'
+              },
+              {
+                label: 'Nefunkční příkaz',
+                value: 'command'
+              },
+              {
+                label: 'Problém s pluginem',
+                value: 'plugin'
+              },
+              {
+                label: 'Jiné',
+                value: 'other'
+              }
+            ])
+        );
+
+        return interaction.update({
+          embeds: [embed],
+          components: [row, backButton()]
+        });
+      }
+
+      if (value === 'appeal') {
+
+        ticket.category = 'Žádost o zrušení trestu';
+
+        const embed = new EmbedBuilder()
+          .setColor(0x2f3136)
+          .setTitle('📄 Žádost o zrušení trestu')
+          .setDescription(
+            'Zvolte prosím typ trestu.'
+          );
+
+        const row = new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId('appeal_menu')
+            .setPlaceholder('Vyberte typ trestu')
+            .addOptions([
+              {
+                label: 'Mute',
+                value: 'mute'
+              },
+              {
+                label: 'Ban',
+                value: 'ban'
+              },
+              {
+                label: 'IP Ban',
+                value: 'ipban'
+              },
+              {
+                label: 'Stížnost',
+                value: 'complaint'
+              },
+              {
+                label: 'Jiné',
+                value: 'other'
+              }
+            ])
+        );
+
+        return interaction.update({
+          embeds: [embed],
+          components: [row, backButton()]
+        });
+      }
+
+      if (value === 'management') {
+
+        ticket.category = 'Kontaktování vedení';
+
+        const embed = new EmbedBuilder()
+          .setColor(0x2f3136)
+          .setTitle('📘 Kontaktování vedení')
+          .setDescription(
+            'Zvolte prosím důvod kontaktování vedení.'
+          );
+
+        const row = new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId('management_menu')
+            .setPlaceholder('Vyberte možnost')
+            .addOptions([
+              {
+                label: 'Nahlášení člena týmu',
+                value: 'staff_report'
+              },
+              {
+                label: 'Stížnost',
+                value: 'complaint'
+              },
+              {
+                label: 'Žádost o spolupráci',
+                value: 'partnership'
+              },
+              {
+                label: 'Jiné',
+                value: 'other'
+              }
+            ])
+        );
+
+        return interaction.update({
+          embeds: [embed],
+          components: [row, backButton()]
+        });
+      }
+
+      if (value === 'mc_question') {
+
+        ticket.category = 'Otázka - MC Server';
+
+        const embed = new EmbedBuilder()
+          .setColor(0x2f3136)
+          .setTitle('🎮 Otázka - MC Server')
+          .setDescription(
+            'Zvolte prosím příslušnou podkategorii.'
+          );
+
+        const row = new ActionRowBuilder().addComponents(
+          new StringSelectMenuBuilder()
+            .setCustomId('mc_menu')
+            .setPlaceholder('Vyberte kategorii')
+            .addOptions([
+              {
+                label: 'Ekonomika',
+                value: 'economy'
+              },
+              {
+                label: 'Questy',
+                value: 'quests'
+              },
+              {
+                label: 'Claimy',
+                value: 'claims'
+              },
+              {
+                label: 'Pravidla',
+                value: 'rules'
+              },
+              {
+                label: 'Jiné',
+                value: 'other'
+              }
             ])
         );
 
@@ -246,43 +457,40 @@ client.on('interactionCreate', async interaction => {
       }
     }
 
-    if (interaction.customId === 'report_player_menu') {
+    if (
+      interaction.customId === 'report_player_menu' ||
+      interaction.customId === 'bug_report_menu' ||
+      interaction.customId === 'appeal_menu' ||
+      interaction.customId === 'management_menu' ||
+      interaction.customId === 'mc_menu'
+    ) {
+
       const labels = {
         mods: 'Nepovolené modifikace',
         chat: 'Nevhodné chování v chatu',
         grief: 'Kažení hry',
         spam: 'Spam / reklama',
         fake_staff: 'Vydávání se za tým',
-        other: 'Jiné'
-      };
 
-      ticket.subcategory = labels[interaction.values[0]];
-
-      const embed = new EmbedBuilder()
-        .setColor(0x2f3136)
-        .setTitle(`Nahlášení hráče - ${ticket.subcategory}`)
-        .setDescription(
-          'Pokud máte k dispozici důkazní materiál k nahlášení hráče, dbejte prosím na to, aby:\n\n' +
-          '• nebyl nijak upravený\n' +
-          '• obsahoval datum a čas\n' +
-          '• nebyl starší než 24 hodin\n\n' +
-          'Důkazní materiál nahrajte přímo sem do ticketu jako screenshot/video, případně pošlete odkaz na YouTube, Streamable, Medal nebo Imgur.\n\n' +
-          'Byla tato odpověď užitečná?'
-        );
-
-      return interaction.update({
-        embeds: [embed],
-        components: [finalButtons()]
-      });
-    }
-
-    if (interaction.customId === 'bug_report_menu') {
-      const labels = {
         dupe: 'Dupe glitch',
         visual: 'Visual bug',
         server: 'Server bug',
         command: 'Nefunkční příkaz',
         plugin: 'Problém s pluginem',
+
+        mute: 'Mute',
+        ban: 'Ban',
+        ipban: 'IP Ban',
+        complaint: 'Stížnost',
+
+        staff_report: 'Nahlášení člena týmu',
+        partnership: 'Žádost o spolupráci',
+
+        economy: 'Ekonomika',
+        quests: 'Questy',
+        claims: 'Claimy',
+        rules: 'Pravidla',
+
         other: 'Jiné'
       };
 
@@ -290,14 +498,10 @@ client.on('interactionCreate', async interaction => {
 
       const embed = new EmbedBuilder()
         .setColor(0x2f3136)
-        .setTitle(`Nahlášení bugu - ${ticket.subcategory}`)
+        .setTitle(`${ticket.category} - ${ticket.subcategory}`)
         .setDescription(
-          'Pokud nahlašujete bug, pokuste se prosím co nejpodrobněji popsat problém.\n\n' +
-          'Doporučujeme přiložit:\n' +
-          '• screenshot\n' +
-          '• video\n' +
-          '• postup, jak bug zopakovat\n\n' +
           'Důkazní materiál nahrajte přímo sem do ticketu jako screenshot/video, případně pošlete odkaz na YouTube, Streamable, Medal nebo Imgur.\n\n' +
+          'Důkaz nesmí být upravený, ořezaný a měl by obsahovat datum/čas.\n\n' +
           'Byla tato odpověď užitečná?'
         );
 
@@ -309,9 +513,11 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (interaction.isButton()) {
+
     const ticket = waitingTickets.get(interaction.channel.id);
 
     if (interaction.customId === 'back_main') {
+
       return interaction.update({
         embeds: [mainMenuEmbed()],
         components: [mainMenuRow()]
@@ -319,6 +525,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.customId === 'enough') {
+
       await interaction.update({
         content: '✅ Ticket byl označen jako vyřešený.',
         embeds: [],
@@ -333,10 +540,19 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.customId === 'need_help') {
-      await interaction.channel.setName(`🟩・${ticket.username}`).catch(() => {});
+
+      await interaction.channel.setName(
+        `🟩・${ticket.username}`
+      ).catch(() => {});
 
       return interaction.update({
-        content: `<@&${process.env.SUPPORT_ROLE_ID}>`,
+        content:
+`
+<@&${process.env.SUPPORT_ROLE_ID}>
+<@&${process.env.SENIORADMIN_ROLE_ID}>
+<@&${process.env.COOWNER_ROLE_ID}>
+<@&${process.env.CEO_ROLE_ID}>
+`,
         embeds: [
           new EmbedBuilder()
             .setColor(0x57f287)
@@ -353,9 +569,12 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.customId === 'claim_ticket') {
+
       ticket.claimedBy = interaction.user.id;
 
-      await interaction.channel.setName(`🟨・${ticket.username}`).catch(() => {});
+      await interaction.channel.setName(
+        `🟨・${ticket.username}`
+      ).catch(() => {});
 
       return interaction.reply({
         content: `🟨 Ticket převzal ${interaction.user}.`,
@@ -364,7 +583,10 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.customId === 'close_ticket') {
-      await interaction.reply('🔒 Ticket bude za 5 sekund uzavřen.');
+
+      await interaction.reply(
+        '🔒 Ticket bude za 5 sekund uzavřen.'
+      );
 
       setTimeout(() => {
         interaction.channel.delete().catch(() => {});
