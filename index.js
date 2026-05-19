@@ -3,8 +3,8 @@ require('dotenv').config();
 const {
   Client,
   GatewayIntentBits,
-  PermissionsBitField,
   ChannelType,
+  PermissionsBitField,
   EmbedBuilder,
   ActionRowBuilder,
   StringSelectMenuBuilder,
@@ -15,8 +15,8 @@ const {
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildVoiceStates
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMessages
   ]
 });
 
@@ -25,9 +25,9 @@ const waitingTickets = new Map();
 function mainMenuEmbed() {
   return new EmbedBuilder()
     .setColor(0x2f3136)
-    .setTitle('Vítejte v čekárně!')
+    .setTitle('📩 Hlavní menu')
     .setDescription(
-      'Zvolte prosím příslušnou kategorii, do které spadá Váš problém.'
+      'Vyberte prosím kategorii, kterou chcete řešit.'
     );
 }
 
@@ -76,7 +76,6 @@ function backButton() {
     new ButtonBuilder()
       .setCustomId('back_main')
       .setLabel('Zpět')
-      .setEmoji('⬅️')
       .setStyle(ButtonStyle.Secondary)
   );
 }
@@ -86,20 +85,12 @@ function finalButtons() {
     new ButtonBuilder()
       .setCustomId('enough')
       .setLabel('Odpověď mi stačila')
-      .setEmoji('🟩')
       .setStyle(ButtonStyle.Success),
 
     new ButtonBuilder()
       .setCustomId('need_help')
       .setLabel('Stále potřebuji pomoc')
-      .setEmoji('🟥')
-      .setStyle(ButtonStyle.Danger),
-
-    new ButtonBuilder()
-      .setCustomId('back_main')
-      .setLabel('Zpět')
-      .setEmoji('⬅️')
-      .setStyle(ButtonStyle.Secondary)
+      .setStyle(ButtonStyle.Danger)
   );
 }
 
@@ -107,85 +98,48 @@ function staffButtons() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId('claim_ticket')
-      .setLabel('Claim')
-      .setEmoji('🟨')
+      .setLabel('Převzít ticket')
       .setStyle(ButtonStyle.Primary),
 
     new ButtonBuilder()
       .setCustomId('close_ticket')
-      .setLabel('Close')
-      .setEmoji('🔒')
+      .setLabel('Uzavřít')
       .setStyle(ButtonStyle.Danger)
   );
 }
 
 client.once('ready', () => {
-  console.log(`✅ Bot je online jako ${client.user.tag}`);
-
-  client.user.setPresence({
-    activities: [
-      {
-        name: 'Čekárna • Support',
-        type: 0
-      }
-    ],
-    status: 'online'
-  });
+  console.log(`${client.user.tag} je online.`);
 });
 
 client.on('voiceStateUpdate', async (oldState, newState) => {
 
-  if (newState.channelId === process.env.WAITING_VOICE_ID) {
+  if (
+    !oldState.channelId &&
+    newState.channelId === process.env.WAITING_VOICE_ID
+  ) {
 
     const member = newState.member;
     const guild = newState.guild;
 
-    const existingChannel = guild.channels.cache.find(
-      c =>
-        c.name === `⏳・${member.user.username.toLowerCase()}` ||
-        c.name === `🟩・${member.user.username.toLowerCase()}` ||
-        c.name === `🟦・${member.user.username.toLowerCase()}` ||
-        c.name === `🟥・${member.user.username.toLowerCase()}` ||
-        c.name === `🟧・${member.user.username.toLowerCase()}` ||
-        c.name === `🟨・${member.user.username.toLowerCase()}`
-    );
-
-    if (existingChannel) return;
-
     const channel = await guild.channels.create({
-      name: `⏳・${member.user.username}`,
+      name: `⏳・${member.user.username.toLowerCase()}`,
       type: ChannelType.GuildText,
-      parent: process.env.SUPPORT_CATEGORY_ID,
+      parent: process.env.TICKET_CATEGORY_ID,
 
       permissionOverwrites: [
-
         {
-          id: guild.roles.everyone,
+          id: guild.id,
           deny: [PermissionsBitField.Flags.ViewChannel]
         },
-
         {
           id: member.id,
           allow: [
             PermissionsBitField.Flags.ViewChannel,
             PermissionsBitField.Flags.SendMessages,
-            PermissionsBitField.Flags.ReadMessageHistory
+            PermissionsBitField.Flags.AttachFiles
           ]
-        },
-
-        ...[
-          process.env.CEO_ROLE_ID,
-          process.env.SENIORADMIN_ROLE_ID,
-          process.env.TEAMLEAD_ROLE_ID,
-          process.env.SUPPORT_ROLE_ID
-        ].map(roleId => ({
-          id: roleId,
-          allow: [
-            PermissionsBitField.Flags.ViewChannel,
-            PermissionsBitField.Flags.SendMessages,
-            PermissionsBitField.Flags.ReadMessageHistory
-          ]
-        }))
+        }
       ]
     });
 
@@ -198,116 +152,112 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     });
 
     await channel.send({
-      content: `🎫 Vítej ${member}`,
+      content: `<@${member.id}>`,
       embeds: [mainMenuEmbed()],
       components: [mainMenuRow()]
     });
-  }  if (
-    oldState.channelId === process.env.WAITING_VOICE_ID &&
-    !newState.channelId
-  ) {
+  }function getRouting(ticket) {
 
-    const member = oldState.member;
-    const guild = oldState.guild;
-
-    const channel = guild.channels.cache.find(
-      c =>
-        c.name === `⏳・${member.user.username.toLowerCase()}` ||
-        c.name === `🟩・${member.user.username.toLowerCase()}` ||
-        c.name === `🟦・${member.user.username.toLowerCase()}` ||
-        c.name === `🟥・${member.user.username.toLowerCase()}` ||
-        c.name === `🟧・${member.user.username.toLowerCase()}` ||
-        c.name === `🟨・${member.user.username.toLowerCase()}`
-    );
-
-    if (channel) {
-      await channel.send(
-        '❌ Ticket byl uzavřen, protože se uživatel odpojil z čekárny.'
-      );
-
-      setTimeout(() => {
-        channel.delete().catch(() => {});
-      }, 5000);
-    }
-  }
-});
-
-function getRouting(ticket) {
   const category = ticket.category;
-  const subcategory = ticket.subcategory;
+
+  if (category === 'Nahlášení hráče') {
+    return {
+      emoji: '🟩',
+      roles: `<@&${process.env.SUPPORT_ROLE_ID}>\n<@&${process.env.SENIORADMIN_ROLE_ID}>\n<@&${process.env.CEO_ROLE_ID}>`
+    };
+  }
+
+  if (category === 'Nahlášení bugu') {
+    return {
+      emoji: '🟦',
+      roles: `<@&${process.env.TEAMLEAD_ROLE_ID}>\n<@&${process.env.CEO_ROLE_ID}>`
+    };
+  }
+
+  if (category === 'Žádost o zrušení trestu') {
+    return {
+      emoji: '🟥',
+      roles: `<@&${process.env.SENIORADMIN_ROLE_ID}>\n<@&${process.env.CEO_ROLE_ID}>`
+    };
+  }
 
   if (category === 'Kontaktování vedení') {
     return {
       emoji: '🟧',
-      status: 'Čeká na CEO',
-      ping: `<@&${process.env.CEO_ROLE_ID}>`
+      roles: `<@&${process.env.CEO_ROLE_ID}>`
     };
   }
 
-  if (category === 'Otázka - MC Server' || category === 'Nahlášení bugu') {
+  if (category === 'Otázka - MC Server') {
     return {
       emoji: '🟦',
-      status: 'Čeká na Team Lead',
-      ping: `<@&${process.env.TEAMLEAD_ROLE_ID}>\n<@&${process.env.CEO_ROLE_ID}>`
+      roles: `<@&${process.env.TEAMLEAD_ROLE_ID}>\n<@&${process.env.CEO_ROLE_ID}>`
     };
   }
 
-  if (
-    category === 'Žádost o zrušení trestu' ||
-    category === 'Otázka - Discord' ||
-    subcategory === 'Nepovolené modifikace' ||
-    subcategory === 'Vydávání se za tým'
-  ) {
+  if (category === 'Otázka - Discord') {
     return {
       emoji: '🟥',
-      status: 'Čeká na Senior Admin',
-      ping: `<@&${process.env.SENIORADMIN_ROLE_ID}>\n<@&${process.env.CEO_ROLE_ID}>`
+      roles: `<@&${process.env.SENIORADMIN_ROLE_ID}>\n<@&${process.env.CEO_ROLE_ID}>`
     };
   }
 
   return {
     emoji: '🟩',
-    status: 'Čeká na Support',
-    ping: `<@&${process.env.SUPPORT_ROLE_ID}>\n<@&${process.env.CEO_ROLE_ID}>`
+    roles: `<@&${process.env.SUPPORT_ROLE_ID}>`
   };
 }
 
-client.on('interactionCreate', async interaction => {
+client.on('interactionCreate', async (interaction) => {
 
   if (interaction.isStringSelectMenu()) {
 
     const ticket = waitingTickets.get(interaction.channel.id);
 
-    if (!ticket) {
-      return interaction.reply({
-        content: '❌ Tento ticket už není aktivní.',
-        ephemeral: true
-      });
-    }
+    if (!ticket) return;
 
     if (interaction.customId === 'main_menu') {
 
       const value = interaction.values[0];
 
       if (value === 'report_player') {
+
         ticket.category = 'Nahlášení hráče';
 
         const embed = new EmbedBuilder()
           .setColor(0x2f3136)
           .setTitle('‼️ Nahlášení hráče')
-          .setDescription('Zvolte prosím příslušnou podkategorii problému.');
+          .setDescription('Vyberte prosím typ nahlášení.');
 
         const row = new ActionRowBuilder().addComponents(
           new StringSelectMenuBuilder()
             .setCustomId('report_player_menu')
-            .setPlaceholder('Vyberte podkategorii')
+            .setPlaceholder('Vyberte kategorii')
             .addOptions([
-              { label: 'Nepovolené modifikace', value: 'mods' },
-              { label: 'Nevhodné chování v chatu', value: 'chat' },
-              { label: 'Kažení hry', value: 'grief' },
-              { label: 'Spam / reklama', value: 'spam' },
-              { label: 'Vydávání se za tým', value: 'fake_staff' },
-              { label: 'Jiné', value: 'other' }
+              {
+                label: 'Nepovolené modifikace',
+                value: 'mods'
+              },
+              {
+                label: 'Nevhodné chování v chatu',
+                value: 'chat'
+              },
+              {
+                label: 'Kažení hry',
+                value: 'grief'
+              },
+              {
+                label: 'Spam / reklama',
+                value: 'spam'
+              },
+              {
+                label: 'Vydávání se za tým',
+                value: 'fake_staff'
+              },
+              {
+                label: 'Jiné',
+                value: 'other'
+              }
             ])
         );
 
@@ -318,24 +268,43 @@ client.on('interactionCreate', async interaction => {
       }
 
       if (value === 'bug_report') {
+
         ticket.category = 'Nahlášení bugu';
 
         const embed = new EmbedBuilder()
           .setColor(0x2f3136)
           .setTitle('🐛 Nahlášení bugu')
-          .setDescription('Zvolte prosím typ bugu, který chcete nahlásit.');
+          .setDescription('Vyberte prosím typ bugu.');
 
         const row = new ActionRowBuilder().addComponents(
           new StringSelectMenuBuilder()
             .setCustomId('bug_report_menu')
-            .setPlaceholder('Vyberte typ bugu')
+            .setPlaceholder('Vyberte kategorii')
             .addOptions([
-              { label: 'Dupe glitch', value: 'dupe' },
-              { label: 'Visual bug', value: 'visual' },
-              { label: 'Server bug', value: 'server' },
-              { label: 'Nefunkční příkaz', value: 'command' },
-              { label: 'Problém s pluginem', value: 'plugin' },
-              { label: 'Jiné', value: 'other' }
+              {
+                label: 'Dupe glitch',
+                value: 'dupe'
+              },
+              {
+                label: 'Visual bug',
+                value: 'visual'
+              },
+              {
+                label: 'Server bug',
+                value: 'server'
+              },
+              {
+                label: 'Nefunkční příkaz',
+                value: 'command'
+              },
+              {
+                label: 'Problém s pluginem',
+                value: 'plugin'
+              },
+              {
+                label: 'Jiné',
+                value: 'other'
+              }
             ])
         );
 
@@ -344,23 +313,39 @@ client.on('interactionCreate', async interaction => {
           components: [row, backButton()]
         });
       }      if (value === 'appeal') {
+
         ticket.category = 'Žádost o zrušení trestu';
 
         const embed = new EmbedBuilder()
           .setColor(0x2f3136)
           .setTitle('📄 Žádost o zrušení trestu')
-          .setDescription('Zvolte prosím typ trestu.');
+          .setDescription('Vyberte prosím typ trestu.');
 
         const row = new ActionRowBuilder().addComponents(
           new StringSelectMenuBuilder()
             .setCustomId('appeal_menu')
-            .setPlaceholder('Vyberte typ trestu')
+            .setPlaceholder('Vyberte kategorii')
             .addOptions([
-              { label: 'Mute', value: 'mute' },
-              { label: 'Ban', value: 'ban' },
-              { label: 'IP Ban', value: 'ipban' },
-              { label: 'Stížnost', value: 'complaint' },
-              { label: 'Jiné', value: 'other' }
+              {
+                label: 'Mute',
+                value: 'mute'
+              },
+              {
+                label: 'Ban',
+                value: 'ban'
+              },
+              {
+                label: 'IP Ban',
+                value: 'ipban'
+              },
+              {
+                label: 'Stížnost',
+                value: 'complaint'
+              },
+              {
+                label: 'Jiné',
+                value: 'other'
+              }
             ])
         );
 
@@ -371,22 +356,35 @@ client.on('interactionCreate', async interaction => {
       }
 
       if (value === 'management') {
+
         ticket.category = 'Kontaktování vedení';
 
         const embed = new EmbedBuilder()
           .setColor(0x2f3136)
           .setTitle('📘 Kontaktování vedení')
-          .setDescription('Zvolte prosím důvod kontaktování vedení.');
+          .setDescription('Vyberte prosím typ požadavku.');
 
         const row = new ActionRowBuilder().addComponents(
           new StringSelectMenuBuilder()
             .setCustomId('management_menu')
-            .setPlaceholder('Vyberte možnost')
+            .setPlaceholder('Vyberte kategorii')
             .addOptions([
-              { label: 'Nahlášení člena týmu', value: 'staff_report' },
-              { label: 'Stížnost', value: 'complaint' },
-              { label: 'Žádost o spolupráci', value: 'partnership' },
-              { label: 'Jiné', value: 'other' }
+              {
+                label: 'Nahlášení člena týmu',
+                value: 'staff_report'
+              },
+              {
+                label: 'Stížnost',
+                value: 'complaint'
+              },
+              {
+                label: 'Žádost o spolupráci',
+                value: 'partnership'
+              },
+              {
+                label: 'Jiné',
+                value: 'other'
+              }
             ])
         );
 
@@ -397,23 +395,39 @@ client.on('interactionCreate', async interaction => {
       }
 
       if (value === 'mc_question') {
+
         ticket.category = 'Otázka - MC Server';
 
         const embed = new EmbedBuilder()
           .setColor(0x2f3136)
           .setTitle('🎮 Otázka - MC Server')
-          .setDescription('Zvolte prosím příslušnou podkategorii.');
+          .setDescription('Vyberte prosím kategorii.');
 
         const row = new ActionRowBuilder().addComponents(
           new StringSelectMenuBuilder()
             .setCustomId('mc_menu')
             .setPlaceholder('Vyberte kategorii')
             .addOptions([
-              { label: 'Ekonomika', value: 'economy' },
-              { label: 'Questy', value: 'quests' },
-              { label: 'Claimy', value: 'claims' },
-              { label: 'Pravidla', value: 'rules' },
-              { label: 'Jiné', value: 'other' }
+              {
+                label: 'Ekonomika',
+                value: 'economy'
+              },
+              {
+                label: 'Questy',
+                value: 'quests'
+              },
+              {
+                label: 'Claimy',
+                value: 'claims'
+              },
+              {
+                label: 'Pravidla',
+                value: 'rules'
+              },
+              {
+                label: 'Jiné',
+                value: 'other'
+              }
             ])
         );
 
@@ -424,23 +438,39 @@ client.on('interactionCreate', async interaction => {
       }
 
       if (value === 'discord_question') {
+
         ticket.category = 'Otázka - Discord';
 
         const embed = new EmbedBuilder()
           .setColor(0x2f3136)
           .setTitle('💬 Otázka - Discord')
-          .setDescription('Zvolte prosím příslušnou podkategorii.');
+          .setDescription('Vyberte prosím kategorii.');
 
         const row = new ActionRowBuilder().addComponents(
           new StringSelectMenuBuilder()
             .setCustomId('discord_menu')
             .setPlaceholder('Vyberte kategorii')
             .addOptions([
-              { label: 'Role', value: 'roles' },
-              { label: 'Ověření', value: 'verify' },
-              { label: 'Voice chat', value: 'voice' },
-              { label: 'Ticket systém', value: 'tickets' },
-              { label: 'Jiné', value: 'other' }
+              {
+                label: 'Role',
+                value: 'roles'
+              },
+              {
+                label: 'Ověření',
+                value: 'verify'
+              },
+              {
+                label: 'Voice chat',
+                value: 'voice'
+              },
+              {
+                label: 'Ticket systém',
+                value: 'tickets'
+              },
+              {
+                label: 'Jiné',
+                value: 'other'
+              }
             ])
         );
 
@@ -449,9 +479,7 @@ client.on('interactionCreate', async interaction => {
           components: [row, backButton()]
         });
       }
-    }
-
-    if (
+    }    if (
       interaction.customId === 'report_player_menu' ||
       interaction.customId === 'bug_report_menu' ||
       interaction.customId === 'appeal_menu' ||
@@ -459,7 +487,9 @@ client.on('interactionCreate', async interaction => {
       interaction.customId === 'mc_menu' ||
       interaction.customId === 'discord_menu'
     ) {
+
       const labels = {
+
         mods: 'Nepovolené modifikace',
         chat: 'Nevhodné chování v chatu',
         grief: 'Kažení hry',
@@ -495,14 +525,37 @@ client.on('interactionCreate', async interaction => {
 
       ticket.subcategory = labels[interaction.values[0]];
 
+      const routing = getRouting(ticket);
+
+      let description = '';
+
+      if (ticket.category === 'Nahlášení hráče') {
+
+        description =
+          'Pokud máte k dispozici důkazní materiál k nahlášení hráče, dbejte prosím na to, aby:\n\n' +
+          '• nebyl nijak upravený\n' +
+          '• obsahoval datum a čas\n' +
+          '• nebyl starší než 24 hodin\n\n' +
+          'Důkazní materiál nahrajte přímo sem do ticketu jako screenshot/video, případně pošlete odkaz na YouTube, Streamable, Medal nebo Imgur.\n\n' +
+          '🟩 Ticket řeší:\n' +
+          `${routing.roles}`;
+      }
+
+      else {
+
+        description =
+          'Nyní prosím vyčkejte na příchod člena:\n\n' +
+          `${routing.roles}\n\n` +
+          'který se Vám bude věnovat.\n\n' +
+          '⚠️ Upozornění\n' +
+          'Požadujete podporu mimo pracovní dobu,\n' +
+          'tudíž není jisté, že se Vám někdo bude věnovat.';
+      }
+
       const embed = new EmbedBuilder()
         .setColor(0x2f3136)
         .setTitle(`${ticket.category} - ${ticket.subcategory}`)
-        .setDescription(
-          'Důkazní materiál nahrajte přímo sem do ticketu jako screenshot/video, případně pošlete odkaz na YouTube, Streamable, Medal nebo Imgur.\n\n' +
-          'Důkaz nesmí být upravený, ořezaný a měl by obsahovat datum/čas.\n\n' +
-          'Byla tato odpověď užitečná?'
-        );
+        .setDescription(description);
 
       return interaction.update({
         embeds: [embed],
@@ -512,16 +565,13 @@ client.on('interactionCreate', async interaction => {
   }
 
   if (interaction.isButton()) {
+
     const ticket = waitingTickets.get(interaction.channel.id);
 
-    if (!ticket) {
-      return interaction.reply({
-        content: '❌ Tento ticket už není aktivní.',
-        ephemeral: true
-      });
-    }
+    if (!ticket) return;
 
     if (interaction.customId === 'back_main') {
+
       return interaction.update({
         embeds: [mainMenuEmbed()],
         components: [mainMenuRow()]
@@ -529,6 +579,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.customId === 'enough') {
+
       await interaction.update({
         content: '✅ Ticket byl označen jako vyřešený.',
         embeds: [],
@@ -543,14 +594,15 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.customId === 'need_help') {
+
       const routing = getRouting(ticket);
 
       await interaction.channel.setName(
-        `${routing.emoji}・${ticket.username}`
+        `${routing.emoji}・${ticket.username.toLowerCase()}`
       ).catch(() => {});
 
       return interaction.update({
-        content: routing.ping,
+        content: routing.roles,
         embeds: [
           new EmbedBuilder()
             .setColor(0x57f287)
@@ -558,8 +610,7 @@ client.on('interactionCreate', async interaction => {
             .setDescription(
               `Hráč: <@${ticket.userId}>\n` +
               `Kategorie: ${ticket.category}\n` +
-              `Podkategorie: ${ticket.subcategory}\n` +
-              `Status: ${routing.status}`
+              `Podkategorie: ${ticket.subcategory}`
             )
         ],
         components: [staffButtons()]
@@ -567,20 +618,23 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (interaction.customId === 'claim_ticket') {
+
       ticket.claimedBy = interaction.user.id;
 
       await interaction.channel.setName(
-        `🟨・${ticket.username}`
+        `🟨・${ticket.username.toLowerCase()}`
       ).catch(() => {});
 
       return interaction.reply({
-        content: `🟨 Ticket převzal ${interaction.user}.`,
-        ephemeral: false
+        content: `🟨 Ticket převzal ${interaction.user}.`
       });
     }
 
     if (interaction.customId === 'close_ticket') {
-      await interaction.reply('🔒 Ticket bude za 5 sekund uzavřen.');
+
+      await interaction.reply({
+        content: '🔒 Ticket bude za 5 sekund uzavřen.'
+      });
 
       setTimeout(() => {
         interaction.channel.delete().catch(() => {});
