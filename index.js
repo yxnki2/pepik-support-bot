@@ -122,11 +122,8 @@ client.once('ready', () => {
 
 client.on('voiceStateUpdate', async (oldState, newState) => {
 
-  if (
-    !oldState.channelId &&
-    newState.channelId === process.env.WAITING_VOICE_ID
-  ) {
-
+  if (newState.channelId === process.env.WAITING_VOICE_ID) {
+   
     const member = newState.member;
     const guild = newState.guild;
 
