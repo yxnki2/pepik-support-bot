@@ -493,11 +493,8 @@ client.on('interactionCreate', async interaction => {
         description =
           'Nyní prosím vyčkejte na příchod člena:\n\n' +
           `${routing.roles}\n\n` +
-          'který se Vám bude věnovat.\n\n' +
-          '⚠️ Upozornění\n' +
-          'Požadujete podporu mimo pracovní dobu,\n' +
-          'tudíž není jisté, že se Vám někdo bude věnovat.';
-      }
+          'který se Vám bude věnovat.
+}
 
       const embed = new EmbedBuilder()
         .setColor(0x2f3136)
