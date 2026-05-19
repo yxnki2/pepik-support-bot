@@ -25,10 +25,8 @@ const waitingTickets = new Map();
 function mainMenuEmbed() {
   return new EmbedBuilder()
     .setColor(0x2f3136)
-    .setTitle('📩 Hlavní menu')
-    .setDescription(
-      'Vyberte prosím kategorii, kterou chcete řešit.'
-    );
+    .setTitle('Vítejte v čekárně!')
+    .setDescription('Zvolte prosím příslušnou kategorii, do které spadá Váš problém.');
 }
 
 function mainMenuRow() {
@@ -37,36 +35,12 @@ function mainMenuRow() {
       .setCustomId('main_menu')
       .setPlaceholder('Vyberte kategorii')
       .addOptions([
-        {
-          label: 'Nahlášení hráče',
-          value: 'report_player',
-          emoji: '‼️'
-        },
-        {
-          label: 'Nahlášení bugu',
-          value: 'bug_report',
-          emoji: '🐛'
-        },
-        {
-          label: 'Žádost o zrušení trestu',
-          value: 'appeal',
-          emoji: '📄'
-        },
-        {
-          label: 'Kontaktování vedení',
-          value: 'management',
-          emoji: '📘'
-        },
-        {
-          label: 'Otázka - MC Server',
-          value: 'mc_question',
-          emoji: '🎮'
-        },
-        {
-          label: 'Otázka - Discord',
-          value: 'discord_question',
-          emoji: '💬'
-        }
+        { label: 'Nahlášení hráče', value: 'report_player', emoji: '‼️' },
+        { label: 'Nahlášení bugu', value: 'bug_report', emoji: '🐛' },
+        { label: 'Žádost o zrušení trestu', value: 'appeal', emoji: '📄' },
+        { label: 'Kontaktování vedení', value: 'management', emoji: '📘' },
+        { label: 'Otázka - MC Server', value: 'mc_question', emoji: '🎮' },
+        { label: 'Otázka - Discord', value: 'discord_question', emoji: '💬' }
       ])
   );
 }
@@ -109,33 +83,32 @@ function staffButtons() {
 }
 
 client.once('ready', () => {
-  console.log(`${client.user.tag} je online.`);
+  console.log(`✅ Bot je online jako ${client.user.tag}`);
 
   client.user.setPresence({
-    activities: [{
-      name: 'Čekárna • Support',
-      type: 0
-    }],
+    activities: [{ name: 'Čekárna • Support', type: 0 }],
     status: 'online'
   });
-});
-
-client.on('voiceStateUpdate', async (oldState, newState) => {
-
+});client.on('voiceStateUpdate', async (oldState, newState) => {
   if (newState.channelId === process.env.WAITING_VOICE_ID) {
-   
     const member = newState.member;
     const guild = newState.guild;
+    const username = member.user.username.toLowerCase();
 
     const existingChannel = guild.channels.cache.find(
       c =>
-        c.name.includes(member.user.username.toLowerCase())
+        c.name === `⏳・${username}` ||
+        c.name === `🟩・${username}` ||
+        c.name === `🟦・${username}` ||
+        c.name === `🟥・${username}` ||
+        c.name === `🟧・${username}` ||
+        c.name === `🟨・${username}`
     );
 
     if (existingChannel) return;
 
     const channel = await guild.channels.create({
-      name: `⏳・${member.user.username.toLowerCase()}`,
+      name: `⏳・${username}`,
       type: ChannelType.GuildText,
       parent: process.env.SUPPORT_CATEGORY_ID,
 
@@ -153,7 +126,6 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
             PermissionsBitField.Flags.ReadMessageHistory
           ]
         },
-
         ...[
           process.env.SUPPORT_ROLE_ID,
           process.env.SENIORADMIN_ROLE_ID,
@@ -172,7 +144,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
 
     waitingTickets.set(channel.id, {
       userId: member.id,
-      username: member.user.username,
+      username,
       category: null,
       subcategory: null,
       claimedBy: null
@@ -183,21 +155,28 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
       embeds: [mainMenuEmbed()],
       components: [mainMenuRow()]
     });
-  }  if (
+  }
+
+  if (
     oldState.channelId === process.env.WAITING_VOICE_ID &&
     !newState.channelId
   ) {
     const member = oldState.member;
     const guild = oldState.guild;
+    const username = member.user.username.toLowerCase();
 
     const channel = guild.channels.cache.find(
-      c => c.name.includes(member.user.username.toLowerCase())
+      c =>
+        c.name === `⏳・${username}` ||
+        c.name === `🟩・${username}` ||
+        c.name === `🟦・${username}` ||
+        c.name === `🟥・${username}` ||
+        c.name === `🟧・${username}` ||
+        c.name === `🟨・${username}`
     );
 
     if (channel) {
-      await channel.send(
-        '❌ Ticket byl uzavřen, protože se uživatel odpojil z čekárny.'
-      );
+      await channel.send('❌ Ticket byl uzavřen, protože se uživatel odpojil z čekárny.');
 
       setTimeout(() => {
         channel.delete().catch(() => {});
@@ -255,9 +234,7 @@ function getRouting(ticket) {
     emoji: '🟩',
     roles: `<@&${process.env.SUPPORT_ROLE_ID}>`
   };
-}
-
-client.on('interactionCreate', async interaction => {
+}client.on('interactionCreate', async interaction => {
   if (interaction.isStringSelectMenu()) {
     const ticket = waitingTickets.get(interaction.channel.id);
 
@@ -325,7 +302,9 @@ client.on('interactionCreate', async interaction => {
           embeds: [embed],
           components: [row, backButton()]
         });
-      }      if (value === 'appeal') {
+      }
+
+      if (value === 'appeal') {
         ticket.category = 'Žádost o zrušení trestu';
 
         const embed = new EmbedBuilder()
@@ -474,7 +453,6 @@ client.on('interactionCreate', async interaction => {
       };
 
       ticket.subcategory = labels[interaction.values[0]];
-
       const routing = getRouting(ticket);
 
       let description;
@@ -493,8 +471,8 @@ client.on('interactionCreate', async interaction => {
         description =
           'Nyní prosím vyčkejte na příchod člena:\n\n' +
           `${routing.roles}\n\n` +
-          'který se Vám bude věnovat.;
-}
+          'který se Vám bude věnovat.';
+      }
 
       const embed = new EmbedBuilder()
         .setColor(0x2f3136)
@@ -543,7 +521,7 @@ client.on('interactionCreate', async interaction => {
       const routing = getRouting(ticket);
 
       await interaction.channel.setName(
-        `${routing.emoji}・${ticket.username.toLowerCase()}`
+        `${routing.emoji}・${ticket.username}`
       ).catch(() => {});
 
       return interaction.update({
@@ -566,7 +544,7 @@ client.on('interactionCreate', async interaction => {
       ticket.claimedBy = interaction.user.id;
 
       await interaction.channel.setName(
-        `🟨・${ticket.username.toLowerCase()}`
+        `🟨・${ticket.username}`
       ).catch(() => {});
 
       return interaction.reply({
