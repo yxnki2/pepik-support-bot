@@ -493,7 +493,7 @@ client.on('interactionCreate', async interaction => {
         description =
           'Nyní prosím vyčkejte na příchod člena:\n\n' +
           `${routing.roles}\n\n` +
-          'který se Vám bude věnovat.
+          'který se Vám bude věnovat.;
 }
 
       const embed = new EmbedBuilder()
